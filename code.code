@@ -1,0 +1,71 @@
+#include "mainwindow.h"
+#include "ui_mainwindow.h"
+
+MainWindow::MainWindow(QWidget *parent)
+    : QMainWindow(parent), model(new QStandardItemModel(this))
+{
+    setupModel();
+
+    treeView = new QTreeView(this);
+    treeView->setModel(model);
+
+    downloadButton = new QPushButton("Скачать", this);
+    connect(downloadButton, &QPushButton::clicked, this, &MainWindow::onDownloadButtonClicked);
+
+    QVBoxLayout *layout = new QVBoxLayout;
+    layout->addWidget(treeView);
+    layout->addWidget(downloadButton);
+
+    QWidget *centralWidget = new QWidget(this);
+    centralWidget->setLayout(layout);
+    setCentralWidget(centralWidget);
+}
+
+MainWindow::~MainWindow()
+{
+}
+
+void MainWindow::setupModel()
+{
+    model->setHorizontalHeaderLabels(QStringList() << "Файлы" << "Статус");
+
+    // Заполнение модели данными
+    populateModelWithData();
+}
+
+void MainWindow::populateModelWithData()
+{
+    // Пример файлов
+    QList<QPair<QString, bool>> files = {
+        {"file1.txt", false},
+        {"file2.txt", true},
+        {"file3.txt", false},
+        {"file4.txt", true}
+    };
+
+    for (const auto &file : files) {
+        QList<QStandardItem *> items;
+        items.append(new QStandardItem(file.first)); // Имя файла
+        items.append(new QStandardItem(file.second ? "Скачен" : "Не скачен")); // Статус
+
+        model->appendRow(items);
+    }
+}
+
+void MainWindow::onDownloadButtonClicked()
+{
+    QModelIndexList selectedIndexes = treeView->selectionModel()->selectedRows();
+    for (const QModelIndex &index : selectedIndexes) {
+        if (index.isValid()) {
+            QString fileName = model->item(index.row(), 0)->text();
+            // Проверка, что файл не скачен
+            if (model->item(index.row(), 1)->text() == "Не скачен") {
+                // Заглушка для скачивания
+                qDebug() << "Скачивание файла:" << fileName;
+
+                // Обновляем статус после "скачивания"
+                model->item(index.row(), 1)->setText("Скачен");
+            }
+        }
+    }
+}
