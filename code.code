@@ -1,65 +1,43 @@
 #include <QApplication>
-#include <QTableView>
+#include <QTreeView>
 #include <QStandardItemModel>
-#include <QVBoxLayout>
-#include <QWidget>
-#include <QHeaderView>
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     QApplication app(argc, argv);
 
-    // Основное окно
-    QWidget window;
-    QVBoxLayout layout(&window);
+    // Создаем модель
+    QStandardItemModel model;
 
-    // Создание модели
-    QStandardItemModel *model = new QStandardItemModel(0, 4, &window);
-    model->setHorizontalHeaderLabels({"Имя", "Значение", "Мин. значение", "Макс. значение"});
+    // Устанавливаем заголовки столбцов
+    model.setHorizontalHeaderLabels({"Имя", "Значение", "Минимальное", "Максимальное"});
 
-    // Добавление родительского элемента (настройка шлюза)
-    QStandardItem *gatewayItem = new QStandardItem("Настройка шлюза");
-    model->appendRow(gatewayItem);
+    // Создаем корневые элементы (настройка шлюза и устройства)
+    QStandardItem *gatewayItem = model.invisibleRootItem()->appendRow(new QStandardItem("Настройка шлюза"));
+    QStandardItem *deviceItem = model.invisibleRootItem()->appendRow(new QStandardItem("Настройка устройства"));
 
-    // Добавление параметров под родительским элементом (дочерние элементы)
-    QStandardItem *valueItem = new QStandardItem("123");
-    QStandardItem *minItem = new QStandardItem("100");
-    QStandardItem *maxItem = new QStandardItem("200");
+    // Настройка шлюза
+    QStandardItem *ipItem = new QStandardItem("IP");
+    ipItem->setEditable(true);  // Делаем ячейку редактируемой
+    gatewayItem->appendRow({ipItem, new QStandardItem("192.168.0.1"), new QStandardItem("0.0.0.0"), new QStandardItem("255.255.255.255")});
 
-    QList<QStandardItem*> rowItems = {new QStandardItem("Значение"), valueItem, minItem, maxItem};
-    gatewayItem->appendRow(rowItems);
+    QStandardItem *portItem = new QStandardItem("Port");
+    portItem->setEditable(true);  // Делаем ячейку редактируемой
+    gatewayItem->appendRow({portItem, new QStandardItem("8080"), new QStandardItem("0"), new QStandardItem("65535")});
 
-    // Добавление другой настройки
-    QStandardItem *otherItem = new QStandardItem("Другая настройка");
-    model->appendRow(otherItem);
-    otherItem->appendRow(new QStandardItem("456"), new QStandardItem("400"), new QStandardItem("300"), new QStandardItem("500"));
+    // Настройка устройства (можно добавить параметры аналогично)
+    QStandardItem *deviceParam = new QStandardItem("Параметр устройства");
+    deviceParam->setEditable(true);  
+    deviceItem->appendRow({deviceParam, new QStandardItem("значение"), new QStandardItem("минимальное"), new QStandardItem("максимальное")});
 
-    // Настройка QTableView
-    QTableView *tableView = new QTableView(&window);
-    tableView->setModel(model);
-    tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    // Создаем QTreeView
+    QTreeView treeView;
+    treeView.setModel(&model);
 
-    // Настройка поведения при двойном щелчке (раскрытие/закрытие)
-    QObject::connect(tableView, &QTableView::doubleClicked, [&](const QModelIndex &index) {
-        if (index.isValid()) {
-            if (index.parent().isValid()) { // Если это дочерний элемент
-                // Скрыть или показать дочерние элементы
-                model->removeRow(index.row(), index.parent());
-            } else { // Если это родительский элемент
-                // Разворачивание
-                // Обычно вам нужно проверить, есть ли дочерние элементы
-                // и если их нет, создать их
-                if (model->hasIndex(index.row(), 0, index)) {
-                    model->appendRow(new QStandardItem("Подразделение 1"));
-                    model->appendRow(new QStandardItem("Подразделение 2"));
-                }
-            }
-        }
-    });
-
-    layout.addWidget(tableView);
-    window.setLayout(&layout);
-    window.resize(800, 600);
-    window.show();
+    treeView.expandAll();  // Разворачиваем все элементы
+    treeView.setWindowTitle("QTreeView Example");
+    treeView.resize(400, 300);
+    treeView.show();
 
     return app.exec();
 }
