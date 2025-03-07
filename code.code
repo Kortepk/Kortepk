@@ -1,75 +1,64 @@
 #include <QApplication>
 #include <QTableView>
 #include <QStandardItemModel>
-#include <QStandardItem>
-#include <QHeaderView>
 #include <QVBoxLayout>
 #include <QWidget>
-
-class MainWindow : public QWidget {
-    Q_OBJECT
-
-public:
-    MainWindow() {
-        // Создаем модель
-        model = new QStandardItemModel(this);
-        model->setHorizontalHeaderLabels({"Имя", "Значение", "Минимальное значение", "Максимальное значение"});
-
-        // Добавляем примеры данных
-        addSetting("Настройка шлюза", "192.168.1.1", "192.168.1.0", "192.168.1.255");
-        addSetting("Настройка сервера", "example.com", "0.0.0.0", "255.255.255.255");
-        addSetting("Другая настройка", "Изначальное значение", "0", "1");
-
-        // Создаем представление таблицы
-        tableView = new QTableView(this);
-        tableView->setModel(model);
-        tableView->horizontalHeader()->setStretchLastSection(true);
-        tableView->verticalHeader()->setVisible(false);
-
-        // Устанавливаем раскрывание
-        tableView->setItemDelegateForColumn(0, new ExpandableDelegate(this));
-
-        QVBoxLayout *layout = new QVBoxLayout(this);
-        layout->addWidget(tableView);
-        setLayout(layout);
-    }
-
-    void addSetting(const QString &name, const QString &value, const QString &minValue, const QString &maxValue) {
-        // Убираем дополнительные строки
-        QStandardItem *itemName = new QStandardItem(name);
-        itemName->setData(QVariant(true), Qt::UserRole); // Скрываем по умолчанию
-
-        QStandardItem *itemValue = new QStandardItem(value);
-        QStandardItem *itemMinValue = new QStandardItem(minValue);
-        QStandardItem *itemMaxValue = new QStandardItem(maxValue);
-
-        model->appendRow(itemName);
-        model->appendRow(QList<QStandardItem*>() << itemValue << itemMinValue << itemMaxValue);
-    }
-
-private:
-    QTableView *tableView;
-    QStandardItemModel *model;
-
-private slots:
-    void onItemClicked(const QModelIndex &index) {
-        // Здесь добавьте логику раскрытия/скрытия
-        if (index.isValid() && index.column() == 0) { // если кликнули по имени
-            QStandardItem *item = model->item(index.row());
-            if (item && !item->data(Qt::UserRole).toBool()) {
-                // Логика раскрытия
-                // Ваш код для раскрытия
-            } else {
-                // Логика скрытия
-                // Ваш код для скрытия
-            }
-        }
-    }
-};
+#include <QHeaderView>
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
-    MainWindow window;
+
+    // Основное окно
+    QWidget window;
+    QVBoxLayout layout(&window);
+
+    // Создание модели
+    QStandardItemModel *model = new QStandardItemModel(0, 4, &window);
+    model->setHorizontalHeaderLabels({"Имя", "Значение", "Мин. значение", "Макс. значение"});
+
+    // Добавление родительского элемента (настройка шлюза)
+    QStandardItem *gatewayItem = new QStandardItem("Настройка шлюза");
+    model->appendRow(gatewayItem);
+
+    // Добавление параметров под родительским элементом (дочерние элементы)
+    QStandardItem *valueItem = new QStandardItem("123");
+    QStandardItem *minItem = new QStandardItem("100");
+    QStandardItem *maxItem = new QStandardItem("200");
+
+    QList<QStandardItem*> rowItems = {new QStandardItem("Значение"), valueItem, minItem, maxItem};
+    gatewayItem->appendRow(rowItems);
+
+    // Добавление другой настройки
+    QStandardItem *otherItem = new QStandardItem("Другая настройка");
+    model->appendRow(otherItem);
+    otherItem->appendRow(new QStandardItem("456"), new QStandardItem("400"), new QStandardItem("300"), new QStandardItem("500"));
+
+    // Настройка QTableView
+    QTableView *tableView = new QTableView(&window);
+    tableView->setModel(model);
+    tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    // Настройка поведения при двойном щелчке (раскрытие/закрытие)
+    QObject::connect(tableView, &QTableView::doubleClicked, [&](const QModelIndex &index) {
+        if (index.isValid()) {
+            if (index.parent().isValid()) { // Если это дочерний элемент
+                // Скрыть или показать дочерние элементы
+                model->removeRow(index.row(), index.parent());
+            } else { // Если это родительский элемент
+                // Разворачивание
+                // Обычно вам нужно проверить, есть ли дочерние элементы
+                // и если их нет, создать их
+                if (model->hasIndex(index.row(), 0, index)) {
+                    model->appendRow(new QStandardItem("Подразделение 1"));
+                    model->appendRow(new QStandardItem("Подразделение 2"));
+                }
+            }
+        }
+    });
+
+    layout.addWidget(tableView);
+    window.setLayout(&layout);
+    window.resize(800, 600);
     window.show();
 
     return app.exec();
