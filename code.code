@@ -1,71 +1,76 @@
-#include "mainwindow.h"
-#include "ui_mainwindow.h"
+#include <QApplication>
+#include <QTableView>
+#include <QStandardItemModel>
+#include <QStandardItem>
+#include <QHeaderView>
+#include <QVBoxLayout>
+#include <QWidget>
 
-MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent), model(new QStandardItemModel(this))
-{
-    setupModel();
+class MainWindow : public QWidget {
+    Q_OBJECT
 
-    treeView = new QTreeView(this);
-    treeView->setModel(model);
+public:
+    MainWindow() {
+        // Создаем модель
+        model = new QStandardItemModel(this);
+        model->setHorizontalHeaderLabels({"Имя", "Значение", "Минимальное значение", "Максимальное значение"});
 
-    downloadButton = new QPushButton("Скачать", this);
-    connect(downloadButton, &QPushButton::clicked, this, &MainWindow::onDownloadButtonClicked);
+        // Добавляем примеры данных
+        addSetting("Настройка шлюза", "192.168.1.1", "192.168.1.0", "192.168.1.255");
+        addSetting("Настройка сервера", "example.com", "0.0.0.0", "255.255.255.255");
+        addSetting("Другая настройка", "Изначальное значение", "0", "1");
 
-    QVBoxLayout *layout = new QVBoxLayout;
-    layout->addWidget(treeView);
-    layout->addWidget(downloadButton);
+        // Создаем представление таблицы
+        tableView = new QTableView(this);
+        tableView->setModel(model);
+        tableView->horizontalHeader()->setStretchLastSection(true);
+        tableView->verticalHeader()->setVisible(false);
 
-    QWidget *centralWidget = new QWidget(this);
-    centralWidget->setLayout(layout);
-    setCentralWidget(centralWidget);
-}
+        // Устанавливаем раскрывание
+        tableView->setItemDelegateForColumn(0, new ExpandableDelegate(this));
 
-MainWindow::~MainWindow()
-{
-}
-
-void MainWindow::setupModel()
-{
-    model->setHorizontalHeaderLabels(QStringList() << "Файлы" << "Статус");
-
-    // Заполнение модели данными
-    populateModelWithData();
-}
-
-void MainWindow::populateModelWithData()
-{
-    // Пример файлов
-    QList<QPair<QString, bool>> files = {
-        {"file1.txt", false},
-        {"file2.txt", true},
-        {"file3.txt", false},
-        {"file4.txt", true}
-    };
-
-    for (const auto &file : files) {
-        QList<QStandardItem *> items;
-        items.append(new QStandardItem(file.first)); // Имя файла
-        items.append(new QStandardItem(file.second ? "Скачен" : "Не скачен")); // Статус
-
-        model->appendRow(items);
+        QVBoxLayout *layout = new QVBoxLayout(this);
+        layout->addWidget(tableView);
+        setLayout(layout);
     }
-}
 
-void MainWindow::onDownloadButtonClicked()
-{
-    QModelIndexList selectedIndexes = treeView->selectionModel()->selectedRows();
-    for (const QModelIndex &index : selectedIndexes) {
-        if (index.isValid()) {
-            QString fileName = model->item(index.row(), 0)->text();
-            // Проверка, что файл не скачен
-            if (model->item(index.row(), 1)->text() == "Не скачен") {
-                // Заглушка для скачивания
-                qDebug() << "Скачивание файла:" << fileName;
+    void addSetting(const QString &name, const QString &value, const QString &minValue, const QString &maxValue) {
+        // Убираем дополнительные строки
+        QStandardItem *itemName = new QStandardItem(name);
+        itemName->setData(QVariant(true), Qt::UserRole); // Скрываем по умолчанию
 
-                // Обновляем статус после "скачивания"
-                model->item(index.row(), 1)->setText("Скачен");
+        QStandardItem *itemValue = new QStandardItem(value);
+        QStandardItem *itemMinValue = new QStandardItem(minValue);
+        QStandardItem *itemMaxValue = new QStandardItem(maxValue);
+
+        model->appendRow(itemName);
+        model->appendRow(QList<QStandardItem*>() << itemValue << itemMinValue << itemMaxValue);
+    }
+
+private:
+    QTableView *tableView;
+    QStandardItemModel *model;
+
+private slots:
+    void onItemClicked(const QModelIndex &index) {
+        // Здесь добавьте логику раскрытия/скрытия
+        if (index.isValid() && index.column() == 0) { // если кликнули по имени
+            QStandardItem *item = model->item(index.row());
+            if (item && !item->data(Qt::UserRole).toBool()) {
+                // Логика раскрытия
+                // Ваш код для раскрытия
+            } else {
+                // Логика скрытия
+                // Ваш код для скрытия
             }
         }
     }
+};
+
+int main(int argc, char *argv[]) {
+    QApplication app(argc, argv);
+    MainWindow window;
+    window.show();
+
+    return app.exec();
 }
