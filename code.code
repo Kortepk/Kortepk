@@ -1,98 +1,107 @@
+#include <QString>
+
+class block {
+public:
+    block() : weight(0), name("") {}
+    block(int w, const QString& n) : weight(w), name(n) {}
+
+    int weight;
+    QString name;
+};
+
 #include <QFile>
+#include <QCborStreamWriter>
 #include <QVector>
-#include <QDebug>
-#include <QtCbor/QCborStreamWriter>
-#include <QtCbor/QCborStreamReader>
 
-class Block {
-public:
-    Block(int value = 0) : value(value) {}
-
-    // Методы для сериализации и десериализации
-    void writeToCbor(QCborStreamWriter &writer) const {
-        writer.startArray(2); // начинаем массив с длиной 2
-        writer << 1; // версия
-        writer << value; // данные блока
-        writer.endArray();
+void saveToCbor(const QVector<block*>& block_vector, const QString& filename) {
+    QFile file(filename);
+    if (!file.open(QIODevice::WriteOnly)) {
+        qWarning("Could not open file for writing");
+        return;
     }
 
-    void readFromCbor(QCborStreamReader &reader) {
-        if (reader.isArray() && reader.arraySize() == 2) {
-            reader.enterArray();
-            int version;
-            reader >> version; // считываем версию
-            reader >> value; // считываем данные блока
-            reader.leaveArray();
-        }
+    QCborStreamWriter writer(&file);
+
+    // Записываем версию файла
+    writer.append(1); // Версия 1
+
+    // Записываем количество блоков
+    writer.append(block_vector.size());
+
+    // Записываем каждый блок
+    for (const block* b : block_vector) {
+        writer.append(b->weight);
+        writer.append(b->name);
     }
 
-    int value; // пример поля
+    file.close();
+}
 
-};
+#include <QFile>
+#include <QCborStreamReader>
+#include <QVector>
 
-class MyClass {
-public:
-    void saveToFile(const QString &filename) {
-        QFile file(filename);
-        if (!file.open(QIODevice::WriteOnly)) {
-            qWarning() << "Cannot open file for writing:" << file.errorString();
+void loadFromCbor(QVector<block*>& block_vector, const QString& filename) {
+    QFile file(filename);
+    if (!file.open(QIODevice::ReadOnly)) {
+        qWarning("Could not open file for reading");
+        return;
+    }
+
+    QCborStreamReader reader(&file);
+
+    // Читаем версию файла
+    if (!reader.isInteger()) {
+        qWarning("Invalid CBOR format");
+        return;
+    }
+    int version = reader.toInteger();
+    reader.next();
+
+    // Читаем количество блоков
+    if (!reader.isInteger()) {
+        qWarning("Invalid CBOR format");
+        return;
+    }
+    int count = reader.toInteger();
+    reader.next();
+
+    // Читаем каждый блок
+    for (int i = 0; i < count; ++i) {
+        if (!reader.isInteger()) {
+            qWarning("Invalid CBOR format");
             return;
         }
+        int weight = reader.toInteger();
+        reader.next();
 
-        QCborStreamWriter writer(&file);
-        writer.startArray(); // Начинаем массив
-        writer << 1; // версия файла
-        writer.startArray(); // начинаем массив блоков
-        for (const Block *block : block_vector) {
-            block->writeToCbor(writer); // сериализуем каждый блок
-        }
-        writer.endArray(); // заканчиваем массив блоков
-        writer.endArray(); // заканчиваем общий массив
-
-        file.close();
-    }
-
-    void loadFromFile(const QString &filename) {
-        QFile file(filename);
-        if (!file.open(QIODevice::ReadOnly)) {
-            qWarning() << "Cannot open file for reading:" << file.errorString();
+        if (!reader.isString()) {
+            qWarning("Invalid CBOR format");
             return;
         }
+        QString name = reader.readString();
+        reader.next();
 
-        QCborStreamReader reader(&file);
-        if (reader.isArray() && reader.arraySize() == 2) {
-            reader.enterArray();
-            int version;
-            reader >> version; // считываем версию
-            if (version != 1) {
-                qWarning() << "Unsupported version:" << version;
-                return;
-            }
-            reader.enterArray(); // входим в массив блоков
-            while (!reader.isEnd()) {
-                Block* block = new Block();
-                block->readFromCbor(reader); // десериализуем блок
-                block_vector.append(block);
-            }
-            reader.leaveArray(); // покидаем массив блоков
-            reader.leaveArray(); // покидаем общий массив
-        }
-
-        file.close();
+        block_vector.append(new block(weight, name));
     }
 
-    QVector<Block *> block_vector; // Вектор блоков
-};
+    file.close();
+}
 
-// Пример использования
 #include <QPushButton>
 
-void onSaveButtonClicked() {
-    MyClass myClass;
-    myClass.saveToFile("blocks.cbor");
-}
+// В вашем классе окна
+QVector<block*> block_vector;
 
-void onLoadButtonClicked() {
-    MyClass myClass;
-    myClass.loadFromFile("blocks.cbor");
-}
+// Кнопка для сохранения
+QPushButton* saveButton = new QPushButton("Save", this);
+connect(saveButton, &QPushButton::clicked, this, [this]() {
+    saveToCbor(block_vector, "data.cbor");
+});
+
+// Кнопка для загрузки
+QPushButton* loadButton = new QPushButton("Load", this);
+connect(loadButton, &QPushButton::clicked, this, [this]() {
+    block_vector.clear();
+    loadFromCbor(block_vector, "data.cbor");
+});
