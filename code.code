@@ -1,43 +1,95 @@
-#include <QApplication>
-#include <QTreeView>
-#include <QStandardItemModel>
+#include <QFile>
+#include <QVector>
+#include <QPushButton>
+#include <QDebug>
+#include <QCBOR.h>
 
-int main(int argc, char *argv[])
-{
-    QApplication app(argc, argv);
+class Block {
+public:
+    // Пример свойств класса:
+    int id;
+    QString name;
+    
+    // Конструктор
+    Block(int id, QString name) : id(id), name(name) {}
 
-    // Создаем модель
-    QStandardItemModel model;
+    // Загрузка и сохранение в CBOR
+    QCBORMap toCBOR() const {
+        QCBORMap map;
+        map.add("id", id);
+        map.add("name", name);
+        return map;
+    }
 
-    // Устанавливаем заголовки столбцов
-    model.setHorizontalHeaderLabels({"Имя", "Значение", "Минимальное", "Максимальное"});
+    static Block fromCBOR(QCBORMap &map) {
+        int id = map["id"].toInt();
+        QString name = map["name"].toString();
+        return Block(id, name);
+    }
+};
 
-    // Создаем корневые элементы (настройка шлюза и устройства)
-    QStandardItem *gatewayItem = model.invisibleRootItem()->appendRow(new QStandardItem("Настройка шлюза"));
-    QStandardItem *deviceItem = model.invisibleRootItem()->appendRow(new QStandardItem("Настройка устройства"));
+class MyClass : public QObject {
+    Q_OBJECT
+private:
+    QVector<Block*> block_vector;
 
-    // Настройка шлюза
-    QStandardItem *ipItem = new QStandardItem("IP");
-    ipItem->setEditable(true);  // Делаем ячейку редактируемой
-    gatewayItem->appendRow({ipItem, new QStandardItem("192.168.0.1"), new QStandardItem("0.0.0.0"), new QStandardItem("255.255.255.255")});
+public:
+    MyClass() {
+        // Предположим, что мы заполнили block_vector некоторыми данными
+        block_vector.append(new Block(1, "Block1"));
+        block_vector.append(new Block(2, "Block2"));
+    }
 
-    QStandardItem *portItem = new QStandardItem("Port");
-    portItem->setEditable(true);  // Делаем ячейку редактируемой
-    gatewayItem->appendRow({portItem, new QStandardItem("8080"), new QStandardItem("0"), new QStandardItem("65535")});
+public slots:
+    void saveToFile(const QString &fileName) {
+        QCBORMap rootMap;
+        rootMap.add("version", 1); // Версия файла
 
-    // Настройка устройства (можно добавить параметры аналогично)
-    QStandardItem *deviceParam = new QStandardItem("Параметр устройства");
-    deviceParam->setEditable(true);  
-    deviceItem->appendRow({deviceParam, new QStandardItem("значение"), new QStandardItem("минимальное"), new QStandardItem("максимальное")});
+        QCBORArray blocksArray;
+        for (Block* block : block_vector) {
+            blocksArray.add(block->toCBOR());
+        }
+        rootMap.add("blocks", blocksArray);
 
-    // Создаем QTreeView
-    QTreeView treeView;
-    treeView.setModel(&model);
+        // Сохраняем в файл
+        QFile file(fileName);
+        if (!file.open(QIODevice::WriteOnly)) {
+            qDebug() << "Ошибка открытия файла для записи.";
+            return;
+        }
 
-    treeView.expandAll();  // Разворачиваем все элементы
-    treeView.setWindowTitle("QTreeView Example");
-    treeView.resize(400, 300);
-    treeView.show();
+        QCBORArray cborArray = rootMap.asCBOR();
+        file.write(cborArray.toCbor());
+        file.close();
+    }
 
-    return app.exec();
-}
+    void loadFromFile(const QString &fileName) {
+        QFile file(fileName);
+        if (!file.open(QIODevice::ReadOnly)) {
+            qDebug() << "Ошибка открытия файла для чтения.";
+            return;
+        }
+
+        QByteArray data = file.readAll();
+        file.close();
+
+        QCBORDecode decoder;
+        const QCBORData decoded = decoder.decode(data);
+
+        // Проверка версии
+        int version = decoded.toMap()["version"].toInt();
+        if (version != 1) {
+            qDebug() << "Неверная версия файла.";
+            return;
+        }
+
+        block_vector.clear(); // Очищаем текущий вектор
+
+        QCBORArray blocksArray = decoded.toMap()["blocks"].toArray();
+        for (auto blockItem : blocksArray) {
+            QCBORMap blockMap = blockItem.toMap();
+            Block block = Block::fromCBOR(blockMap);
+            block_vector.append(new Block(block.id, block.name)); // Добавляем новый объект
+        }
+    }
+};
