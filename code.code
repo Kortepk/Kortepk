@@ -1,107 +1,52 @@
-#include <QString>
+#include <QCoreApplication>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QJsonValue>
+#include <QDebug>
 
-class block {
-public:
-    block() : weight(0), name("") {}
-    block(int w, const QString& n) : weight(w), name(n) {}
-
-    int weight;
-    QString name;
-};
-
-#include <QFile>
-#include <QCborStreamWriter>
-#include <QVector>
-
-void saveToCbor(const QVector<block*>& block_vector, const QString& filename) {
-    QFile file(filename);
-    if (!file.open(QIODevice::WriteOnly)) {
-        qWarning("Could not open file for writing");
-        return;
+void printJsonValue(const QJsonValue &value, int indent = 0) {
+    QString spacing(indent, ' '); // Для отступов при отображении
+    if (value.isObject()) {
+        QJsonObject obj = value.toObject();
+        for (const QString &key : obj.keys()) {
+            qDebug() << spacing << key << ":";
+            printJsonValue(obj.value(key), indent + 2);
+        }
+    } else if (value.isArray()) {
+        QJsonArray array = value.toArray();
+        for (int i = 0; i < array.size(); ++i) {
+            qDebug() << spacing << "[" << i << "]:";
+            printJsonValue(array.at(i), indent + 2);
+        }
+    } else {
+        qDebug() << spacing << value; // Вывод примитивного значения
     }
-
-    QCborStreamWriter writer(&file);
-
-    // Записываем версию файла
-    writer.append(1); // Версия 1
-
-    // Записываем количество блоков
-    writer.append(block_vector.size());
-
-    // Записываем каждый блок
-    for (const block* b : block_vector) {
-        writer.append(b->weight);
-        writer.append(b->name);
-    }
-
-    file.close();
 }
 
-#include <QFile>
-#include <QCborStreamReader>
-#include <QVector>
+int main(int argc, char *argv[]) {
+    QCoreApplication a(argc, argv);
 
-void loadFromCbor(QVector<block*>& block_vector, const QString& filename) {
-    QFile file(filename);
-    if (!file.open(QIODevice::ReadOnly)) {
-        qWarning("Could not open file for reading");
-        return;
-    }
+    // Пример JSON-данных
+    QString jsonString = R"({
+        "name": "John Doe",
+        "age": 30,
+        "address": {
+            "street": "123 Main St",
+            "city": "Anytown"
+        },
+        "phoneNumbers": [
+            {"type": "home", "number": "123-456-7890"},
+            {"type": "work", "number": "098-765-4321"}
+        ]
+    })";
 
-    QCborStreamReader reader(&file);
+    // Парсинг JSON
+    QJsonDocument doc = QJsonDocument::fromJson(jsonString.toUtf8());
+    QJsonObject jsonObject = doc.object();
 
-    // Читаем версию файла
-    if (!reader.isInteger()) {
-        qWarning("Invalid CBOR format");
-        return;
-    }
-    int version = reader.toInteger();
-    reader.next();
+    // Вывод в консоль
+    printJsonValue(jsonObject);
 
-    // Читаем количество блоков
-    if (!reader.isInteger()) {
-        qWarning("Invalid CBOR format");
-        return;
-    }
-    int count = reader.toInteger();
-    reader.next();
-
-    // Читаем каждый блок
-    for (int i = 0; i < count; ++i) {
-        if (!reader.isInteger()) {
-            qWarning("Invalid CBOR format");
-            return;
-        }
-        int weight = reader.toInteger();
-        reader.next();
-
-        if (!reader.isString()) {
-            qWarning("Invalid CBOR format");
-            return;
-        }
-        QString name = reader.readString();
-        reader.next();
-
-        block_vector.append(new block(weight, name));
-    }
-
-    file.close();
+    return a.exec();
 }
-
-#include <QPushButton>
-
-// В вашем классе окна
-QVector<block*> block_vector;
-
-// Кнопка для сохранения
-QPushButton* saveButton = new QPushButton("Save", this);
-connect(saveButton, &QPushButton::clicked, this, [this]() {
-    saveToCbor(block_vector, "data.cbor");
-});
-
-// Кнопка для загрузки
-QPushButton* loadButton = new QPushButton("Load", this);
-connect(loadButton, &QPushButton::clicked, this, [this]() {
-    block_vector.clear();
-    loadFromCbor(block_vector, "data.cbor");
-});
